@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+	"k8s.io/client-go/util/workqueue"
 )
 
 func main() {
@@ -70,4 +71,12 @@ func main() {
 
 	fmt.Println("informer cache synced waiting for live events in default")
 	<-stopCh
+
+	//adding a workqueue decouple events from processing
+	//right now our event handlers do work directly inside the
+	//call back bad idea slow reconcil blocks the informer and can cause miss events
+	//
+
+	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+
 }
