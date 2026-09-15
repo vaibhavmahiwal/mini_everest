@@ -78,5 +78,35 @@ func main() {
 	//
 
 	queue := workqueue.NewRateLimitingQueue(workqueue.DefaultControllerRateLimiter())
+    
+	podInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}){
+			key,_:=cache.MetaNamespaceKeyFunc(obj)
+			queue.Add(key)
+		},
+		UpdateFunc: func(oldObj,newObj interface{}){
+			key,_:=cache.MetaNamespaceKeyFunc(newObj)
+			queue.Add(key)
+		},
+	})
 
+	func runWorker(queue workqueue.RateLimitingInterface ,lister cache.Indexer,clientset *kubernetes.Clientset){
+        for {
+			key,shutdown:=queue.Get()
+			if shutdown{
+				return
+			}
+			func(){
+				defer queue.Done(key)
+					err := syncPod(key.(string), lister, clientset)
+					if err!=nil{
+						queue.AddRateLimited(key)
+						return
+					}
+					queue.Forget(key)
+			}()
+		}
+	}
+    
 }
+
