@@ -1,6 +1,6 @@
-// package v1alpha1 contains the API schemadefinitions for the mini_everest v1alpha1 API group
+// Package v1alpha1 contains API Schema definitions for the mini-everest v1alpha1 API group
 // +kubebuilder:object:generate=true
-// +groupName=mini_everest.io
+// +groupName=databases.mini-everest.io
 package v1alpha1
 
 import (
@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	//groupversion is a schema Groupversion for the mini_everest API
+	// GroupVersion is group version used to register these objects
 	GroupVersion = schema.GroupVersion{
 		Group:   "databases.mini-everest.io",
 		Version: "v1alpha1",
@@ -17,6 +17,7 @@ var (
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
+
 	// AddToScheme adds the types in this group-version to the given scheme.
 	AddToScheme = SchemeBuilder.AddToScheme
 )

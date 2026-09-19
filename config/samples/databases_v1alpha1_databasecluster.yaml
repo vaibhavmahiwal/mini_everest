@@ -1,0 +1,8 @@
+apiVersion: databases.mini-everest.io/v1alpha1
+kind: DatabaseCluster
+metadata:
+  name: my-postgres
+spec:
+  engine: postgresql
+  replicas: 1
+  storageSize: 1Gi

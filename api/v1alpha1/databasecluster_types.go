@@ -4,20 +4,27 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// DataBaseClusterSpec defines the desired state of DataBaseCluster
+// DatabaseClusterSpec defines the desired state of DatabaseCluster
 type DatabaseClusterSpec struct {
+	// Engine defines the database engine (e.g. postgresql, mysql)
+	Engine string `json:"engine"`
+
+	// Replicas defines the desired number of pods
 	Replicas int32 `json:"replicas"`
+
+	// StorageSize defines the volume claim storage size (e.g. 1Gi)
+	StorageSize string `json:"storageSize"`
 }
 
-// DataBaseClusterStatus defines the observed state of DataBaseCluster
+// DatabaseClusterStatus defines the observed state of DatabaseCluster
 type DatabaseClusterStatus struct {
-	ReadyReplicas int32 `json:"readyreplicas"`
+	ReadyReplicas int32 `json:"readyReplicas,omitempty"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 
-// DataBaseCluster is the Schema for the databaseclusters API
+// DatabaseCluster is the Schema for the databaseclusters API
 type DatabaseCluster struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -26,10 +33,10 @@ type DatabaseCluster struct {
 	Status DatabaseClusterStatus `json:"status,omitempty"`
 }
 
-//kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
-// DataBaseClusterList contains a list of DataBaseCluster
-type DataBaseClusterList struct {
+// DatabaseClusterList contains a list of DatabaseCluster
+type DatabaseClusterList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 
