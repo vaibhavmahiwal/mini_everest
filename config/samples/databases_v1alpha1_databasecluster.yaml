@@ -4,5 +4,5 @@ metadata:
   name: my-postgres
 spec:
   engine: postgresql
-  replicas: 1
+  replicas: 5
   storageSize: 1Gi
