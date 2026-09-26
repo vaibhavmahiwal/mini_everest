@@ -24,6 +24,9 @@ type DatabaseClusterReconciler struct {
 
 // +kubebuilder:rbac:groups=databases.mini-everest.io,resources=databaseclusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups=databases.mini-everest.io,resources=databaseclusters/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=databases.mini-everest.io,resources=databaseclusters/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services;events,verbs=get;list;watch;create;update;patch;delete
 
 //this function is called when a database cluster is created ,updated or deleted
 //it is responsible for reconciling the state of the cluster with the desired state defined
