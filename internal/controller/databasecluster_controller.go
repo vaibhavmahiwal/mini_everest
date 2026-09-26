@@ -25,7 +25,8 @@ type DatabaseClusterReconciler struct {
 // +kubebuilder:rbac:groups=databases.mini-everest.io,resources=databaseclusters,verbs=get;list;watch
 // +kubebuilder:rbac:groups=databases.mini-everest.io,resources=databaseclusters/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=databases.mini-everest.io,resources=databaseclusters/finalizers,verbs=update
-// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;events,verbs=get;list;watch;create;update;patch;delete
 
 //this function is called when a database cluster is created ,updated or deleted
@@ -46,27 +47,28 @@ func (r *DatabaseClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	logger.Info("reconciling DatabaseCluster", "name", dbc.Name, "replicas", dbc.Spec.Replicas)
 
-	if err := r.reconcileDeployment(ctx, &dbc); err != nil {
-		logger.Error(err, "failed to reconcile deployment")
+	if err := r.reconcileStatefulSet(ctx, &dbc); err != nil {
+		logger.Error(err, "failed to reconcile statefulset")
 		return ctrl.Result{}, err
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func (r *DatabaseClusterReconciler) reconcileDeployment(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
-	dep := &appsv1.Deployment{
+func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
+	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dbc.Name,
 			Namespace: dbc.Namespace,
 		},
 	}
-	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, dep, func() error {
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
 		labels := map[string]string{"databasecluster": dbc.Name}
 
-		dep.Spec.Replicas = &dbc.Spec.Replicas
-		dep.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
-		dep.Spec.Template = corev1.PodTemplateSpec{
+		sts.Spec.Replicas = &dbc.Spec.Replicas
+		sts.Spec.ServiceName = dbc.Name
+		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
+		sts.Spec.Template = corev1.PodTemplateSpec{
 			ObjectMeta: metav1.ObjectMeta{Labels: labels},
 			Spec: corev1.PodSpec{
 				Containers: []corev1.Container{
@@ -88,7 +90,7 @@ func (r *DatabaseClusterReconciler) reconcileDeployment(ctx context.Context, dbc
 				},
 			},
 		}
-		return ctrl.SetControllerReference(dbc, dep, r.Scheme)
+		return ctrl.SetControllerReference(dbc, sts, r.Scheme)
 	})
 	return err
 }
@@ -97,6 +99,6 @@ func (r *DatabaseClusterReconciler) reconcileDeployment(ctx context.Context, dbc
 func (r *DatabaseClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&databasesv1alpha1.DatabaseCluster{}).
-		Owns(&appsv1.Deployment{}).
+		Owns(&appsv1.StatefulSet{}).
 		Complete(r)
 }
