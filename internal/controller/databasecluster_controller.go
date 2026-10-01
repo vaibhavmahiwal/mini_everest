@@ -8,6 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -52,14 +53,19 @@ func (r *DatabaseClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
+	if err := r.reconcileService(ctx, &dbc); err != nil {
+		logger.Error(err, "failed to reconcile service")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
 func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dbc.Name,
-			Namespace: dbc.Namespace,
+			Name:      dbc.Name,      //name:what aresource is called
+			Namespace: dbc.Namespace, //namespace is where it belongs
 		},
 	}
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
@@ -95,10 +101,34 @@ func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, db
 	return err
 }
 
+// adding the headless service second owned resource
+func (r *DatabaseClusterReconciler) reconcileService(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dbc.Name,
+			Namespace: dbc.Namespace,
+		},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
+		labels := map[string]string{"databasecluster": dbc.Name}
+		svc.Spec.Selector = labels
+		svc.Spec.ClusterIP = corev1.ClusterIPNone
+		svc.Spec.Ports = []corev1.ServicePort{
+			{
+				Port:       5432,
+				TargetPort: intstr.FromInt(5432),
+			},
+		}
+		return ctrl.SetControllerReference(dbc, svc, r.Scheme)
+	})
+	return err
+}
+
 // this function sets up the controller with the manager, specifying that it will watch for changes to DatabaseCluster resources
 func (r *DatabaseClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&databasesv1alpha1.DatabaseCluster{}).
 		Owns(&appsv1.StatefulSet{}).
+		Owns(&corev1.Service{}).
 		Complete(r)
 }
