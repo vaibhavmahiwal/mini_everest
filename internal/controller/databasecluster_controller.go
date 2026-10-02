@@ -58,6 +58,11 @@ func (r *DatabaseClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
+	if err := r.updateStatus(ctx, &dbc); err != nil {
+		logger.Error(err, "failed to update status")
+		return ctrl.Result{}, err
+	}
+
 	return ctrl.Result{}, nil
 }
 
@@ -122,6 +127,11 @@ func (r *DatabaseClusterReconciler) reconcileService(ctx context.Context, dbc *d
 		return ctrl.SetControllerReference(dbc, svc, r.Scheme)
 	})
 	return err
+}
+
+// creatign this seperately so that could be unit tested on its own later
+func (r *DatabaseClusterReconciler) updateStatus(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
+
 }
 
 // this function sets up the controller with the manager, specifying that it will watch for changes to DatabaseCluster resources
