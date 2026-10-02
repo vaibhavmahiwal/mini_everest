@@ -129,9 +129,23 @@ func (r *DatabaseClusterReconciler) reconcileService(ctx context.Context, dbc *d
 	return err
 }
 
-// creatign this seperately so that could be unit tested on its own later
+// creating this seperately so that could be unit tested on its own later
+// this func read compare update if different
 func (r *DatabaseClusterReconciler) updateStatus(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
+	//get the current statefulset to check the number of ready replicas
+	var sts appsv1.StatefulSet
+	if err := r.Get(
+		ctx,
+		client.ObjectKey{Name: dbc.Name, Namespace: dbc.Namespace},
+		&sts); err != nil {
+		return err
+	}
 
+	if dbc.Status.ReadyReplicas == sts.Status.ReadyReplicas {
+		return nil //no change in status
+	}
+	dbc.Status.ReadyReplicas = sts.Status.ReadyReplicas
+	return r.Status().Update(ctx, dbc)
 }
 
 // this function sets up the controller with the manager, specifying that it will watch for changes to DatabaseCluster resources
