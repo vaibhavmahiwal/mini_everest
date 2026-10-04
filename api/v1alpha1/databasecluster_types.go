@@ -14,6 +14,9 @@ type DatabaseClusterSpec struct {
 
 	// StorageSize defines the volume claim storage size (e.g. 1Gi)
 	StorageSize string `json:"storageSize"`
+
+	// BackupSchedule defines the cron schedule for backups (e.g. "0 2 * * *" for daily at 2 AM)
+	BackupSchedule string `json:"backupSchedule,omitempty"`
 }
 
 // DatabaseClusterStatus defines the observed state of DatabaseCluster

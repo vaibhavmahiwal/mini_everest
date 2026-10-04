@@ -6,6 +6,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -66,6 +67,8 @@ func (r *DatabaseClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 	return ctrl.Result{}, nil
 }
 
+//adding StorageSize in
+
 func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
 	sts := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
@@ -77,6 +80,23 @@ func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, db
 		labels := map[string]string{"databasecluster": dbc.Name}
 
 		sts.Spec.Replicas = &dbc.Spec.Replicas
+		//adding storage size to the statefulset spec
+		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{
+			{
+				//how to do this in a better way
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "data",
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse(dbc.Spec.StorageSize),
+						},
+					},
+				},
+			},
+		}
 		sts.Spec.ServiceName = dbc.Name
 		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
 		sts.Spec.Template = corev1.PodTemplateSpec{
@@ -132,17 +152,12 @@ func (r *DatabaseClusterReconciler) reconcileService(ctx context.Context, dbc *d
 // creating this seperately so that could be unit tested on its own later
 // this func read compare update if different
 func (r *DatabaseClusterReconciler) updateStatus(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
-	//get the current statefulset to check the number of ready replicas
 	var sts appsv1.StatefulSet
-	if err := r.Get(
-		ctx,
-		client.ObjectKey{Name: dbc.Name, Namespace: dbc.Namespace},
-		&sts); err != nil {
+	if err := r.Get(ctx, client.ObjectKey{Name: dbc.Name, Namespace: dbc.Namespace}, &sts); err != nil {
 		return err
 	}
-
-	if dbc.Status.ReadyReplicas == sts.Status.ReadyReplicas {
-		return nil //no change in status
+	if dbc.Status.ReadyReplicas != sts.Status.ReadyReplicas {
+		return nil //already up to date,no need to update
 	}
 	dbc.Status.ReadyReplicas = sts.Status.ReadyReplicas
 	return r.Status().Update(ctx, dbc)
