@@ -1,8 +1,9 @@
 apiVersion: databases.mini-everest.io/v1alpha1
 kind: DatabaseCluster
 metadata:
-  name: my-postgres
+  name: my-postgres-2
 spec:
-  engine: postgresql
-  replicas: 5
-  storageSize: 1Gi
+  engine: postgres
+  replicas: 1
+  storageSize: 2Gi
+  backupSchedule: "0 2 * * *"

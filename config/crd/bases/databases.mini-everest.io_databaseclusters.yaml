@@ -39,6 +39,10 @@ spec:
           spec:
             description: DatabaseClusterSpec defines the desired state of DatabaseCluster
             properties:
+              backupSchedule:
+                description: BackupSchedule defines the cron schedule for backups
+                  (e.g. "0 2 * * *" for daily at 2 AM)
+                type: string
               engine:
                 description: Engine defines the database engine (e.g. postgresql,
                   mysql)
