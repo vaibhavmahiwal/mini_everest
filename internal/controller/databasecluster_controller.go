@@ -117,6 +117,12 @@ func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, db
 								ContainerPort: 5432,
 							},
 						},
+						VolumeMounts: []corev1.VolumeMount{
+							{
+								Name:      "data",
+								MountPath: "/var/lib/postgresql/data",
+							},
+						},
 					},
 				},
 			},

@@ -1,0 +1,48 @@
+name: Build
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache: true
+
+      - name: Download modules
+        run: go mod download
+
+      - name: Check formatting
+        run: |
+          gofmt -l .
+          test -z "$(gofmt -l .)"
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./... -count=1
+
+      - name: Install controller-gen
+        run: go install sigs.k8s.io/controller-tools/cmd/controller-gen@v0.22.0
+
+      - name: Verify codegen is clean
+        run: |
+          export PATH="$HOME/go/bin:$PATH"
+          controller-gen object paths="./api/v1alpha1/..."
+          controller-gen crd paths="./api/v1alpha1/..." output:crd:dir=config/crd/bases
+          git diff --exit-code -- api/ config/crd/ || (echo "::error::Generated artifacts out of date. Run controller-gen locally and commit." && exit 1)
