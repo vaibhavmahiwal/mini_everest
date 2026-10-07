@@ -6,4 +6,4 @@ spec:
   engine: postgres
   replicas: 1
   storageSize: 2Gi
-  backupSchedule: "0 2 * * *"
+  backupSchedule: "0 2 * * *" 
