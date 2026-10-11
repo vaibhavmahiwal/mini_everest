@@ -11,6 +11,10 @@ func (p *postgresProfile) ContainerImage() string {
 	return "postgres:latest"
 }
 
+func (postgresProfile) BackupCommand(dbc *databasesv1alpha1.DatabaseCluster) []string {
+	return []string{"pg_dump", "..."}
+}
+
 func (postgresProfile) ContainerPort() int32 {
 	return 5432
 }

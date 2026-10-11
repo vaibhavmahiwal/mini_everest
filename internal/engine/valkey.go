@@ -14,6 +14,9 @@ func (p *valkeyProfile) ContainerImage() string {
 func (valkeyProfile) ContainerPort() int32 {
 	return 6379
 }
+func (valkeyProfile) BackupCommand(dbc *databasesv1alpha1.DatabaseCluster) []string {
+	return []string{"valkey_dump", "..."}
+}
 
 func (valkeyProfile) Env(dbc *databasesv1alpha1.DatabaseCluster) []corev1.EnvVar {
 	return []corev1.EnvVar{
