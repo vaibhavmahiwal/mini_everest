@@ -4,6 +4,7 @@ import (
 	"context"
 
 	appsv1 "k8s.io/api/apps/v1"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -61,6 +62,11 @@ func (r *DatabaseClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	if err := r.updateStatus(ctx, &dbc); err != nil {
 		logger.Error(err, "failed to update status")
+		return ctrl.Result{}, err
+	}
+
+	if err := r.reconcileBackupCronJob(ctx, &dbc); err != nil {
+		logger.Error(err, "failed to reconcile backup cronjob")
 		return ctrl.Result{}, err
 	}
 
@@ -169,11 +175,42 @@ func (r *DatabaseClusterReconciler) updateStatus(ctx context.Context, dbc *datab
 	return r.Status().Update(ctx, dbc)
 }
 
+func (r *DatabaseClusterReconciler) reconcileBackupCronJob(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
+	cj := &batchv1.CronJob{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      dbc.Name,
+			Namespace: dbc.Namespace,
+		},
+	}
+	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, cj, func() error {
+		backupLabels := map[string]string{"backup-for": dbc.Name}
+		//this is the schedule for the cronjob to run, which is taken from the DatabaseCluster spec
+		cj.Spec.Schedule = dbc.Spec.BackupSchedule
+		//a job template whose container run a backup command against a database
+		cj.Spec.ConcurrencyPolicy = batchv1.ForbidConcurrent
+
+		cj.Spec.JobTemplate = batchv1.JobTemplateSpec{
+			Spec: batchv1.JobSpec{
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{Labels: backupLabels},
+					Spec: corev1.PodSpec{
+						RestartPolicy: corev1.RestartPolicyOnFailure,
+						Containers:    []corev1.Container{},
+					},
+				},
+			},
+		}
+		return ctrl.SetControllerReference(dbc, cj, r.Scheme)
+	})
+	return err
+}
+
 // this function sets up the controller with the manager, specifying that it will watch for changes to DatabaseCluster resources
 func (r *DatabaseClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&databasesv1alpha1.DatabaseCluster{}).
 		Owns(&appsv1.StatefulSet{}).
 		Owns(&corev1.Service{}).
+		Owns(&batchv1.CronJob{}).
 		Complete(r)
 }
