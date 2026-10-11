@@ -10,7 +10,7 @@ import (
 type Profile interface {
 	ContainerImage() string
 	ContainerPort() int32
-	BackupCommand(dbc) []string
+	BackupCommand(dbc *databasesv1alpha1.DatabaseCluster) []string
 	Env(dbc *databasesv1alpha1.DatabaseCluster) []corev1.EnvVar
 }
 

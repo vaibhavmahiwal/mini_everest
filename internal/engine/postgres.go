@@ -11,6 +11,7 @@ func (p *postgresProfile) ContainerImage() string {
 	return "postgres:latest"
 }
 
+// thisfunction returns the backup command for the postgres database cluster
 func (postgresProfile) BackupCommand(dbc *databasesv1alpha1.DatabaseCluster) []string {
 	return []string{"pg_dump", "..."}
 }

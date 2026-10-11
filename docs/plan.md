@@ -167,6 +167,7 @@ Documented explicitly so this reads as informed scope-cutting, not oversight:
 - No automated failover/primary election logic — StatefulSet ordinal 0 is treated as primary by convention only, not enforced
 - No admission webhooks — invalid specs (e.g., bad cron syntax) are only caught in-reconciler, not rejected at `kubectl apply` time
 - No connection pooling layer (PgBouncer equivalent)
+- Backup jobs currently write to temporary pod storage only; backups are not durable or uploaded to object storage
 
 ---
 

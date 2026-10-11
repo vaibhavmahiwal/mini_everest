@@ -31,6 +31,7 @@ type DatabaseClusterReconciler struct {
 // +kubebuilder:rbac:groups=apps,resources=statefulsets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=persistentvolumeclaims,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups="",resources=services;events,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
 
 //this function is called when a database cluster is created ,updated or deleted
 //it is responsible for reconciling the state of the cluster with the desired state defined
@@ -60,13 +61,13 @@ func (r *DatabaseClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	if err := r.updateStatus(ctx, &dbc); err != nil {
-		logger.Error(err, "failed to update status")
+	if err := r.reconcileBackupCronJob(ctx, &dbc); err != nil {
+		logger.Error(err, "failed to reconcile backup cronjob")
 		return ctrl.Result{}, err
 	}
 
-	if err := r.reconcileBackupCronJob(ctx, &dbc); err != nil {
-		logger.Error(err, "failed to reconcile backup cronjob")
+	if err := r.updateStatus(ctx, &dbc); err != nil {
+		logger.Error(err, "failed to update status")
 		return ctrl.Result{}, err
 	}
 
@@ -168,26 +169,33 @@ func (r *DatabaseClusterReconciler) updateStatus(ctx context.Context, dbc *datab
 	if err := r.Get(ctx, client.ObjectKey{Name: dbc.Name, Namespace: dbc.Namespace}, &sts); err != nil {
 		return err
 	}
-	if dbc.Status.ReadyReplicas != sts.Status.ReadyReplicas {
-		return nil //already up to date,no need to update
+	if dbc.Status.ReadyReplicas == sts.Status.ReadyReplicas {
+		return nil
 	}
 	dbc.Status.ReadyReplicas = sts.Status.ReadyReplicas
 	return r.Status().Update(ctx, dbc)
 }
 
+// this function reconciles the backup cronjob for the database cluster
 func (r *DatabaseClusterReconciler) reconcileBackupCronJob(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
 	cj := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      dbc.Name,
+			Name:      dbc.Name + "-backup",
 			Namespace: dbc.Namespace,
 		},
 	}
+	if dbc.Spec.BackupSchedule == "" {
+		return client.IgnoreNotFound(r.Delete(ctx, cj))
+	}
+
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, cj, func() error {
 		backupLabels := map[string]string{"backup-for": dbc.Name}
-		//this is the schedule for the cronjob to run, which is taken from the DatabaseCluster spec
 		cj.Spec.Schedule = dbc.Spec.BackupSchedule
-		//a job template whose container run a backup command against a database
 		cj.Spec.ConcurrencyPolicy = batchv1.ForbidConcurrent
+		successfulJobsHistoryLimit := int32(2)
+		failedJobsHistoryLimit := int32(1)
+		cj.Spec.SuccessfulJobsHistoryLimit = &successfulJobsHistoryLimit
+		cj.Spec.FailedJobsHistoryLimit = &failedJobsHistoryLimit
 
 		cj.Spec.JobTemplate = batchv1.JobTemplateSpec{
 			Spec: batchv1.JobSpec{
@@ -195,7 +203,23 @@ func (r *DatabaseClusterReconciler) reconcileBackupCronJob(ctx context.Context, 
 					ObjectMeta: metav1.ObjectMeta{Labels: backupLabels},
 					Spec: corev1.PodSpec{
 						RestartPolicy: corev1.RestartPolicyOnFailure,
-						Containers:    []corev1.Container{},
+						Containers: []corev1.Container{
+							{
+								Name:  "backup",
+								Image: "postgres:16",
+								Command: []string{
+									"/bin/sh",
+									"-c",
+									"pg_dump -h " + dbc.Name + "-0." + dbc.Name + " -U postgres postgres > /tmp/backup.sql && echo backup ok",
+								},
+								Env: []corev1.EnvVar{
+									{
+										Name:  "PGPASSWORD",
+										Value: "postgres",
+									},
+								},
+							},
+						},
 					},
 				},
 			},
