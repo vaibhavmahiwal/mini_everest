@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"strings"
 
 	databasesv1alpha1 "github.com/vaibhavmahiwal/mini_everest/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -15,9 +16,10 @@ type Profile interface {
 }
 
 func getProfile(engine string) (Profile, error) {
-	if engine == "postgresql" {
+	switch strings.ToLower(strings.TrimSpace(engine)) {
+	case "postgres", "postgresql":
 		return &postgresProfile{}, nil
-	} else if engine == "valkey" {
+	case "valkey":
 		return &valkeyProfile{}, nil
 	}
 	return nil, fmt.Errorf("unsupported engine: %s", engine)
