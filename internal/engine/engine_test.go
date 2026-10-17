@@ -22,17 +22,17 @@ func TestEnv(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p, err := getProfile(tt.engine)
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Fatalf("unexpected error:%v", err)
 			}
 			env := p.Env(&databasesv1alpha1.DatabaseCluster{})
 			if len(env) != tt.wantLen {
-				t.Fatalf("env len = %d, want %d", len(env), tt.wantLen)
+				t.Fatalf("env len=%d,want=%d", len(env), tt.wantLen)
 			}
 			if env[0].Name != tt.wantKey {
-				t.Errorf("env name = %q, want %q", env[0].Name, tt.wantKey)
+				t.Errorf("env name=%q,want=%q", env[0].Name, tt.wantKey)
 			}
 			if env[0].Value != tt.wantVal {
-				t.Errorf("env value = %q, want %q", env[0].Value, tt.wantVal)
+				t.Errorf("env value=%q,want=%q", env[0].Value, tt.wantVal)
 			}
 		})
 	}
@@ -52,14 +52,14 @@ func TestBackupCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			p, err := getProfile(tt.engine)
 			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
+				t.Fatalf("unexpected error:%v", err)
 			}
 			cmd := p.BackupCommand(&databasesv1alpha1.DatabaseCluster{})
 			if len(cmd) == 0 {
-				t.Fatal("backup command is empty")
+				t.Fatalf("backup command is empty")
 			}
 			if cmd[0] != tt.wantPrefix {
-				t.Errorf("backup command[0] = %q, want %q", cmd[0], tt.wantPrefix)
+				t.Errorf("backup command prefix=%q,want=%q", cmd[0], tt.wantPrefix)
 			}
 		})
 	}
