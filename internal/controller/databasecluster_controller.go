@@ -7,10 +7,8 @@ import (
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -77,63 +75,13 @@ func (r *DatabaseClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 //adding StorageSize in
 
 func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
-	sts := &appsv1.StatefulSet{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      dbc.Name,      //name:what aresource is called
-			Namespace: dbc.Namespace, //namespace is where it belongs
-		},
-	}
+	sts := &appsv1.StatefulSet{}
+	sts.Name = dbc.Name
+	sts.Namespace = dbc.Namespace
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
-		labels := map[string]string{"databasecluster": dbc.Name}
-
-		sts.Spec.Replicas = &dbc.Spec.Replicas
-		//adding storage size to the statefulset spec
-		sts.Spec.VolumeClaimTemplates = []corev1.PersistentVolumeClaim{
-			{
-				//how to do this in a better way
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "data",
-				},
-				Spec: corev1.PersistentVolumeClaimSpec{
-					AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
-					Resources: corev1.VolumeResourceRequirements{
-						Requests: corev1.ResourceList{
-							corev1.ResourceStorage: resource.MustParse(dbc.Spec.StorageSize),
-						},
-					},
-				},
-			},
-		}
-		sts.Spec.ServiceName = dbc.Name
-		sts.Spec.Selector = &metav1.LabelSelector{MatchLabels: labels}
-		sts.Spec.Template = corev1.PodTemplateSpec{
-			ObjectMeta: metav1.ObjectMeta{Labels: labels},
-			Spec: corev1.PodSpec{
-				Containers: []corev1.Container{
-					{
-						Name:  "database",
-						Image: "postgres:16",
-						Env: []corev1.EnvVar{
-							{
-								Name:  "POSTGRES_PASSWORD",
-								Value: "postgres",
-							},
-						},
-						Ports: []corev1.ContainerPort{
-							{
-								ContainerPort: 5432,
-							},
-						},
-						VolumeMounts: []corev1.VolumeMount{
-							{
-								Name:      "data",
-								MountPath: "/var/lib/postgresql/data",
-							},
-						},
-					},
-				},
-			},
-		}
+		desired := buildStatefulSet(dbc)
+		sts.Spec = desired.Spec
+		sts.Labels = desired.Labels
 		return ctrl.SetControllerReference(dbc, sts, r.Scheme)
 	})
 	return err
@@ -141,22 +89,13 @@ func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, db
 
 // adding the headless service second owned resource
 func (r *DatabaseClusterReconciler) reconcileService(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
-	svc := &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      dbc.Name,
-			Namespace: dbc.Namespace,
-		},
-	}
+	svc := &corev1.Service{}
+	svc.Name = dbc.Name
+	svc.Namespace = dbc.Namespace
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
-		labels := map[string]string{"databasecluster": dbc.Name}
-		svc.Spec.Selector = labels
-		svc.Spec.ClusterIP = corev1.ClusterIPNone
-		svc.Spec.Ports = []corev1.ServicePort{
-			{
-				Port:       5432,
-				TargetPort: intstr.FromInt(5432),
-			},
-		}
+		desired := buildService(dbc)
+		svc.Spec = desired.Spec
+		svc.Labels = desired.Labels
 		return ctrl.SetControllerReference(dbc, svc, r.Scheme)
 	})
 	return err
