@@ -6,25 +6,35 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	databasesv1alpha1 "github.com/vaibhavmahiwal/mini_everest/api/v1alpha1"
+	"github.com/vaibhavmahiwal/mini_everest/internal/engine"
 )
 
-func newTestCluster() *databasesv1alpha1.DatabaseCluster {
+func newTestCluster(engineName string) *databasesv1alpha1.DatabaseCluster {
 	return &databasesv1alpha1.DatabaseCluster{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "my-postgres",
 			Namespace: "default",
 		},
 		Spec: databasesv1alpha1.DatabaseClusterSpec{
-			Engine:      "postgres",
+			Engine:      engineName,
 			Replicas:    3,
 			StorageSize: "2Gi",
 		},
 	}
 }
 
+func mustProfile(t *testing.T, engineName string) engine.Profile {
+	t.Helper()
+	p, err := engine.For(engineName)
+	if err != nil {
+		t.Fatalf("engine.For(%q): %v", engineName, err)
+	}
+	return p
+}
+
 func TestBuildStatefulSet(t *testing.T) {
-	dbc := newTestCluster()
-	sts := buildStatefulSet(dbc)
+	dbc := newTestCluster("postgres")
+	sts := buildStatefulSet(dbc, mustProfile(t, "postgres"))
 
 	if sts.Name != "my-postgres" {
 		t.Errorf("name = %q, want %q", sts.Name, "my-postgres")
@@ -50,8 +60,7 @@ func TestBuildStatefulSet(t *testing.T) {
 	if pvc.Name != "data" {
 		t.Errorf("pvc name = %q, want %q", pvc.Name, "data")
 	}
-	got := pvc.Spec.Resources.Requests.Storage().String()
-	if got != "2Gi" {
+	if got := pvc.Spec.Resources.Requests.Storage().String(); got != "2Gi" {
 		t.Errorf("pvc storage = %q, want %q", got, "2Gi")
 	}
 
@@ -78,9 +87,28 @@ func TestBuildStatefulSet(t *testing.T) {
 	}
 }
 
+func TestBuildStatefulSetValkey(t *testing.T) {
+	dbc := newTestCluster("valkey")
+	sts := buildStatefulSet(dbc, mustProfile(t, "valkey"))
+
+	c := sts.Spec.Template.Spec.Containers[0]
+	if c.Image != "valkey/valkey:8" {
+		t.Errorf("image = %q, want %q", c.Image, "valkey/valkey:8")
+	}
+	if len(c.Ports) != 1 || c.Ports[0].ContainerPort != 6379 {
+		t.Errorf("ports = %v, want [6379]", c.Ports)
+	}
+	if len(c.Env) != 1 || c.Env[0].Name != "VALKEY_PASSWORD" {
+		t.Errorf("env = %v, want VALKEY_PASSWORD", c.Env)
+	}
+	if len(c.VolumeMounts) != 1 || c.VolumeMounts[0].MountPath != "/data" {
+		t.Errorf("volumeMounts = %+v, want mount at /data", c.VolumeMounts)
+	}
+}
+
 func TestBuildService(t *testing.T) {
-	dbc := newTestCluster()
-	svc := buildService(dbc)
+	dbc := newTestCluster("postgres")
+	svc := buildService(dbc, mustProfile(t, "postgres"))
 
 	if svc.Name != "my-postgres" {
 		t.Errorf("name = %q, want %q", svc.Name, "my-postgres")
@@ -96,5 +124,14 @@ func TestBuildService(t *testing.T) {
 	}
 	if len(svc.Spec.Ports) != 1 || svc.Spec.Ports[0].Port != 5432 {
 		t.Errorf("ports = %v, want [5432]", svc.Spec.Ports)
+	}
+}
+
+func TestBuildServiceValkey(t *testing.T) {
+	dbc := newTestCluster("valkey")
+	svc := buildService(dbc, mustProfile(t, "valkey"))
+
+	if len(svc.Spec.Ports) != 1 || svc.Spec.Ports[0].Port != 6379 {
+		t.Errorf("ports = %v, want [6379]", svc.Spec.Ports)
 	}
 }

@@ -8,11 +8,12 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	databasesv1alpha1 "github.com/vaibhavmahiwal/mini_everest/api/v1alpha1"
+	"github.com/vaibhavmahiwal/mini_everest/internal/engine"
 )
 
 // buildStatefulSet returns the desired StatefulSet for a DatabaseCluster.
 // Pure function: no client, no context, safe to unit test.
-func buildStatefulSet(dbc *databasesv1alpha1.DatabaseCluster) *appsv1.StatefulSet {
+func buildStatefulSet(dbc *databasesv1alpha1.DatabaseCluster, profile engine.Profile) *appsv1.StatefulSet {
 	labels := map[string]string{"databasecluster": dbc.Name}
 
 	return &appsv1.StatefulSet{
@@ -45,22 +46,17 @@ func buildStatefulSet(dbc *databasesv1alpha1.DatabaseCluster) *appsv1.StatefulSe
 					Containers: []corev1.Container{
 						{
 							Name:  "database",
-							Image: "postgres:16",
-							Env: []corev1.EnvVar{
-								{
-									Name:  "POSTGRES_PASSWORD",
-									Value: "postgres",
-								},
-							},
+							Image: profile.ContainerImage(),
+							Env:   profile.Env(dbc),
 							Ports: []corev1.ContainerPort{
 								{
-									ContainerPort: 5432,
+									ContainerPort: profile.ContainerPort(),
 								},
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
 									Name:      "data",
-									MountPath: "/var/lib/postgresql/data",
+									MountPath: profile.DataMountPath(),
 								},
 							},
 						},
@@ -72,8 +68,9 @@ func buildStatefulSet(dbc *databasesv1alpha1.DatabaseCluster) *appsv1.StatefulSe
 }
 
 // buildService returns the desired headless Service for a DatabaseCluster.
-func buildService(dbc *databasesv1alpha1.DatabaseCluster) *corev1.Service {
+func buildService(dbc *databasesv1alpha1.DatabaseCluster, profile engine.Profile) *corev1.Service {
 	labels := map[string]string{"databasecluster": dbc.Name}
+	port := profile.ContainerPort()
 
 	return &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
@@ -85,8 +82,8 @@ func buildService(dbc *databasesv1alpha1.DatabaseCluster) *corev1.Service {
 			ClusterIP: corev1.ClusterIPNone,
 			Ports: []corev1.ServicePort{
 				{
-					Port:       5432,
-					TargetPort: intstr.FromInt(5432),
+					Port:       port,
+					TargetPort: intstr.FromInt32(port),
 				},
 			},
 		},

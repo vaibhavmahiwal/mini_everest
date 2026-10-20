@@ -8,14 +8,23 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// Profile encapsulates everything that differs between database engines.
+// The controller depends on this interface, never on a concrete engine.
 type Profile interface {
 	ContainerImage() string
 	ContainerPort() int32
-	BackupCommand(dbc *databasesv1alpha1.DatabaseCluster) []string
+	// DataMountPath is where the engine expects its data volume.
+	DataMountPath() string
+	// Env is the environment for the database container.
 	Env(dbc *databasesv1alpha1.DatabaseCluster) []corev1.EnvVar
+	// BackupEnv is the environment needed by the backup job.
+	BackupEnv(dbc *databasesv1alpha1.DatabaseCluster) []corev1.EnvVar
+	// BackupCommand is the shell command used by the backup CronJob.
+	BackupCommand(dbc *databasesv1alpha1.DatabaseCluster) []string
 }
 
-func getProfile(engine string) (Profile, error) {
+// For returns the Profile for the given engine name.
+func For(engine string) (Profile, error) {
 	switch strings.ToLower(strings.TrimSpace(engine)) {
 	case "postgres", "postgresql":
 		return &postgresProfile{}, nil

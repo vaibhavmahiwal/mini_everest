@@ -15,6 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	databasesv1alpha1 "github.com/vaibhavmahiwal/mini_everest/api/v1alpha1"
+	"github.com/vaibhavmahiwal/mini_everest/internal/engine"
 )
 
 // DatabaseClusterReconciler reconciles a DatabaseCluster object
@@ -49,17 +50,23 @@ func (r *DatabaseClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 	logger.Info("reconciling DatabaseCluster", "name", dbc.Name, "replicas", dbc.Spec.Replicas)
 
-	if err := r.reconcileStatefulSet(ctx, &dbc); err != nil {
+	profile, err := engine.For(dbc.Spec.Engine)
+	if err != nil {
+		logger.Error(err, "unsupported engine", "engine", dbc.Spec.Engine)
+		return ctrl.Result{}, err
+	}
+
+	if err := r.reconcileStatefulSet(ctx, &dbc, profile); err != nil {
 		logger.Error(err, "failed to reconcile statefulset")
 		return ctrl.Result{}, err
 	}
 
-	if err := r.reconcileService(ctx, &dbc); err != nil {
+	if err := r.reconcileService(ctx, &dbc, profile); err != nil {
 		logger.Error(err, "failed to reconcile service")
 		return ctrl.Result{}, err
 	}
 
-	if err := r.reconcileBackupCronJob(ctx, &dbc); err != nil {
+	if err := r.reconcileBackupCronJob(ctx, &dbc, profile); err != nil {
 		logger.Error(err, "failed to reconcile backup cronjob")
 		return ctrl.Result{}, err
 	}
@@ -74,12 +81,12 @@ func (r *DatabaseClusterReconciler) Reconcile(ctx context.Context, req ctrl.Requ
 
 //adding StorageSize in
 
-func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
+func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster, profile engine.Profile) error {
 	sts := &appsv1.StatefulSet{}
 	sts.Name = dbc.Name
 	sts.Namespace = dbc.Namespace
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
-		desired := buildStatefulSet(dbc)
+		desired := buildStatefulSet(dbc, profile)
 		sts.Spec = desired.Spec
 		sts.Labels = desired.Labels
 		return ctrl.SetControllerReference(dbc, sts, r.Scheme)
@@ -88,12 +95,12 @@ func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, db
 }
 
 // adding the headless service second owned resource
-func (r *DatabaseClusterReconciler) reconcileService(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
+func (r *DatabaseClusterReconciler) reconcileService(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster, profile engine.Profile) error {
 	svc := &corev1.Service{}
 	svc.Name = dbc.Name
 	svc.Namespace = dbc.Namespace
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, svc, func() error {
-		desired := buildService(dbc)
+		desired := buildService(dbc, profile)
 		svc.Spec = desired.Spec
 		svc.Labels = desired.Labels
 		return ctrl.SetControllerReference(dbc, svc, r.Scheme)
@@ -116,7 +123,7 @@ func (r *DatabaseClusterReconciler) updateStatus(ctx context.Context, dbc *datab
 }
 
 // this function reconciles the backup cronjob for the database cluster
-func (r *DatabaseClusterReconciler) reconcileBackupCronJob(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster) error {
+func (r *DatabaseClusterReconciler) reconcileBackupCronJob(ctx context.Context, dbc *databasesv1alpha1.DatabaseCluster, profile engine.Profile) error {
 	cj := &batchv1.CronJob{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      dbc.Name + "-backup",
@@ -144,19 +151,10 @@ func (r *DatabaseClusterReconciler) reconcileBackupCronJob(ctx context.Context, 
 						RestartPolicy: corev1.RestartPolicyOnFailure,
 						Containers: []corev1.Container{
 							{
-								Name:  "backup",
-								Image: "postgres:16",
-								Command: []string{
-									"/bin/sh",
-									"-c",
-									"pg_dump -h " + dbc.Name + "-0." + dbc.Name + " -U postgres postgres > /tmp/backup.sql && echo backup ok",
-								},
-								Env: []corev1.EnvVar{
-									{
-										Name:  "PGPASSWORD",
-										Value: "postgres",
-									},
-								},
+								Name:    "backup",
+								Image:   profile.ContainerImage(),
+								Command: profile.BackupCommand(dbc),
+								Env:     profile.BackupEnv(dbc),
 							},
 						},
 					},

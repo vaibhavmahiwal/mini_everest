@@ -2,7 +2,7 @@ package engine
 
 import "testing"
 
-func TestGetProfile(t *testing.T) {
+func TestFor(t *testing.T) {
 	tests := []struct {
 		name      string
 		engine    string
@@ -10,15 +10,15 @@ func TestGetProfile(t *testing.T) {
 		wantImage string
 		wantPort  int32
 	}{
-		{"postgresql", "postgresql", "postgres", "postgres:latest", 5432},
-		{"postgres alias", "postgres", "postgres", "postgres:latest", 5432},
-		{"valkey", "valkey", "valkey", "valkey:latest", 6379},
+		{"postgresql", "postgresql", "postgres", "postgres:16", 5432},
+		{"postgres alias", "postgres", "postgres", "postgres:16", 5432},
+		{"valkey", "valkey", "valkey", "valkey/valkey:8", 6379},
 		{"unsupported", "mysql", "err", "", 0},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p, err := getProfile(tt.engine)
+			p, err := For(tt.engine)
 			if tt.wantType == "err" {
 				if err == nil {
 					t.Errorf("expected error for engine %q, but got nil", tt.engine)
