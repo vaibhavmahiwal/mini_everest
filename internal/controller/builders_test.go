@@ -34,7 +34,10 @@ func mustProfile(t *testing.T, engineName string) engine.Profile {
 
 func TestBuildStatefulSet(t *testing.T) {
 	dbc := newTestCluster("postgres")
-	sts := buildStatefulSet(dbc, mustProfile(t, "postgres"))
+	sts, err := buildStatefulSet(dbc, mustProfile(t, "postgres"))
+	if err != nil {
+		t.Fatalf("buildStatefulSet() error = %v", err)
+	}
 
 	if sts.Name != "my-postgres" {
 		t.Errorf("name = %q, want %q", sts.Name, "my-postgres")
@@ -89,7 +92,10 @@ func TestBuildStatefulSet(t *testing.T) {
 
 func TestBuildStatefulSetValkey(t *testing.T) {
 	dbc := newTestCluster("valkey")
-	sts := buildStatefulSet(dbc, mustProfile(t, "valkey"))
+	sts, err := buildStatefulSet(dbc, mustProfile(t, "valkey"))
+	if err != nil {
+		t.Fatalf("buildStatefulSet() error = %v", err)
+	}
 
 	c := sts.Spec.Template.Spec.Containers[0]
 	if c.Image != "valkey/valkey:8" {
@@ -103,6 +109,19 @@ func TestBuildStatefulSetValkey(t *testing.T) {
 	}
 	if len(c.VolumeMounts) != 1 || c.VolumeMounts[0].MountPath != "/data" {
 		t.Errorf("volumeMounts = %+v, want mount at /data", c.VolumeMounts)
+	}
+}
+
+func TestBuildStatefulSetInvalidStorageSize(t *testing.T) {
+	dbc := newTestCluster("postgres")
+	dbc.Spec.StorageSize = "garbage"
+
+	sts, err := buildStatefulSet(dbc, mustProfile(t, "postgres"))
+	if err == nil {
+		t.Fatal("buildStatefulSet() error = nil, want invalid storage size error")
+	}
+	if sts != nil {
+		t.Fatalf("buildStatefulSet() StatefulSet = %#v, want nil on error", sts)
 	}
 }
 

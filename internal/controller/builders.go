@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"fmt"
+
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -13,7 +15,12 @@ import (
 
 // buildStatefulSet returns the desired StatefulSet for a DatabaseCluster.
 // Pure function: no client, no context, safe to unit test.
-func buildStatefulSet(dbc *databasesv1alpha1.DatabaseCluster, profile engine.Profile) *appsv1.StatefulSet {
+func buildStatefulSet(dbc *databasesv1alpha1.DatabaseCluster, profile engine.Profile) (*appsv1.StatefulSet, error) {
+	storageQuantity, err := resource.ParseQuantity(dbc.Spec.StorageSize)
+	if err != nil {
+		return nil, fmt.Errorf("invalid storage size %q: %w", dbc.Spec.StorageSize, err)
+	}
+
 	labels := map[string]string{"databasecluster": dbc.Name}
 
 	return &appsv1.StatefulSet{
@@ -34,7 +41,7 @@ func buildStatefulSet(dbc *databasesv1alpha1.DatabaseCluster, profile engine.Pro
 						AccessModes: []corev1.PersistentVolumeAccessMode{corev1.ReadWriteOnce},
 						Resources: corev1.VolumeResourceRequirements{
 							Requests: corev1.ResourceList{
-								corev1.ResourceStorage: resource.MustParse(dbc.Spec.StorageSize),
+								corev1.ResourceStorage: storageQuantity,
 							},
 						},
 					},
@@ -64,7 +71,7 @@ func buildStatefulSet(dbc *databasesv1alpha1.DatabaseCluster, profile engine.Pro
 				},
 			},
 		},
-	}
+	}, nil
 }
 
 // buildService returns the desired headless Service for a DatabaseCluster.

@@ -34,6 +34,12 @@ jobs:
       - name: Vet
         run: go vet ./...
 
+      - name: Setup envtest
+        run: |
+          export PATH="$HOME/go/bin:$PATH"
+          go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
+          echo "KUBEBUILDER_ASSETS=$(setup-envtest use -p path)" >> "$GITHUB_ENV"
+
       - name: Test
         run: go test ./... -count=1
 
@@ -45,4 +51,5 @@ jobs:
           export PATH="$HOME/go/bin:$PATH"
           controller-gen object paths="./api/v1alpha1/..."
           controller-gen crd paths="./api/v1alpha1/..." output:crd:dir=config/crd/bases
-          git diff --exit-code -- api/ config/crd/ || (echo "::error::Generated artifacts out of date. Run controller-gen locally and commit." && exit 1)
+          controller-gen rbac:roleName=manager-role paths="./internal/controller/..." output:artifacts:config=config/rbac
+          git diff --exit-code -- api/ config/crd/ config/rbac/ || (echo "::error::Generated artifacts out of date. Run controller-gen locally and commit." && exit 1)

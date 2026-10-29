@@ -39,7 +39,7 @@ func TestMain(m *testing.M) {
 	if err := databasesv1alpha1.AddToScheme(testScheme); err != nil {
 		panic(err)
 	}
-
+	//this runs the envtest env which is a local k8s api server and etcd for testing the controller
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,

@@ -86,7 +86,10 @@ func (r *DatabaseClusterReconciler) reconcileStatefulSet(ctx context.Context, db
 	sts.Name = dbc.Name
 	sts.Namespace = dbc.Namespace
 	_, err := controllerutil.CreateOrUpdate(ctx, r.Client, sts, func() error {
-		desired := buildStatefulSet(dbc, profile)
+		desired, err := buildStatefulSet(dbc, profile)
+		if err != nil {
+			return err
+		}
 		sts.Spec = desired.Spec
 		sts.Labels = desired.Labels
 		return ctrl.SetControllerReference(dbc, sts, r.Scheme)
